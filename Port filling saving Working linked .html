@@ -18,6 +18,7 @@
             --danger: #dc3545;
             --bg: #525659;
             --panel-bg: #ffffff;
+            --select-highlight: #e8f0fe;
         }
 
         body {
@@ -211,6 +212,17 @@
             padding-bottom: 10px;
         }
 
+        .bulk-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            align-items: center;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -230,7 +242,12 @@
             font-weight: bold;
         }
 
+        tr { cursor: pointer; transition: background 0.1s; }
         tr:hover { background-color: #f5f5f5; }
+        tr.selected { background-color: var(--select-highlight); }
+
+        .checkbox-cell { width: 30px; text-align: center; }
+        input[type="checkbox"] { transform: scale(1.2); cursor: pointer; }
 
         .action-cell button {
             width: auto;
@@ -264,15 +281,26 @@
             position: fixed; top:0; left:0; right:0; bottom:0;
             background: rgba(255,255,255,0.9);
             display: none;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 1000;
+        }
+        #loading h3 { color: var(--primary); margin-bottom: 10px; }
+        #loadingBar {
+            width: 300px; height: 10px; background: #ddd; border-radius: 5px; overflow: hidden;
+        }
+        #loadingFill {
+            width: 0%; height: 100%; background: var(--success, #28a745); transition: width 0.3s;
         }
     </style>
 </head>
 <body>
 
-    <div id="loading"><h3>Processing...</h3></div>
+    <div id="loading">
+        <h3 id="loadingText">Processing...</h3>
+        <div id="loadingBar"><div id="loadingFill"></div></div>
+    </div>
 
     <div id="editorView" class="view-section active">
         <div id="sidebar">
@@ -303,7 +331,7 @@
                 <button class="btn-success" onclick="saveDataLocally()">💾 Save Data</button>
                 <button class="btn-info" onclick="showSavedFiles()">📂 View Saved Files</button>
                 <button class="btn-warning" onclick="resetForm()">📄 New Form</button>
-                <button class="btn-primary" onclick="exportPDF()">⬇️ Download PDF</button>
+                <button class="btn-primary" onclick="exportPDF()">⬇️ Download PDF (Current)</button>
             </div>
 
             <h2>4. Fill Information</h2>
@@ -319,16 +347,20 @@
         <div class="table-container">
             <div class="table-header">
                 <h1 style="color:var(--primary); margin:0;">Saved Files Database</h1>
-                <div style="display:flex; gap:10px;">
-                    <button class="btn-primary" onclick="showEditor()" style="width:auto;">⬅ Back to Tool</button>
-                    <button class="btn-danger" onclick="deleteAllData()" style="width:auto;">🗑 Delete All Data</button>
-                </div>
+                <button class="btn-primary" onclick="showEditor()" style="width:auto;">⬅ Back to Editor</button>
+            </div>
+
+            <div class="bulk-actions">
+                <span style="font-weight:bold; font-size:14px;">With Selected:</span>
+                <button class="btn-primary" onclick="exportSelected()" style="width:auto; background-color: #0056b3;">⬇️ Export Selected to PDF</button>
+                <button class="btn-danger" onclick="deleteSelected()" style="width:auto;">🗑 Delete Selected</button>
             </div>
             
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 50%;">File Name (Edit to Rename)</th>
+                        <th class="checkbox-cell"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                        <th style="width: 45%;">File Name</th>
                         <th style="width: 25%;">Last Modified</th>
                         <th style="width: 25%;">Actions</th>
                     </tr>
@@ -397,11 +429,12 @@
         let currentScale = 1.5; 
         let pdfData = null;
         let currentSaveId = null;
+        let selectedIds = new Set(); // For bulk actions
 
         // --- INITIALIZATION ---
         window.onload = function() {
             generateForm(); 
-            loadEmbeddedPdf(); // <--- This loads the Base64 string now
+            loadEmbeddedPdf();
             
             document.getElementById('pdfUpload').addEventListener('change', handlePdfUpload);
             document.getElementById('editToggle').addEventListener('change', (e) => {
@@ -413,7 +446,6 @@
         async function loadEmbeddedPdf() {
             const statusEl = document.getElementById('templateStatus');
             
-            // Check if user has pasted the string yet
             if (!pdfBase64 || pdfBase64.includes("PASTE_YOUR")) {
                 statusEl.innerHTML = "⚠️ No embedded PDF. Please upload manually.";
                 statusEl.style.color = "orange";
@@ -422,21 +454,16 @@
 
             try {
                 statusEl.innerHTML = "🔄 Loading embedded template...";
-                
-                // Decode Base64
                 const binaryString = window.atob(pdfBase64);
                 const len = binaryString.length;
                 const bytes = new Uint8Array(len);
                 for (let i = 0; i < len; i++) {
                     bytes[i] = binaryString.charCodeAt(i);
                 }
-
                 pdfData = bytes.buffer;
                 await loadPdf(pdfData);
-                
                 statusEl.innerHTML = "✅ Template Loaded (Offline Mode)";
                 statusEl.style.color = "green";
-                
             } catch (e) {
                 console.error(e);
                 statusEl.innerHTML = "❌ Error loading embedded PDF.";
@@ -487,6 +514,8 @@
         function showSavedFiles() {
             document.getElementById('editorView').classList.remove('active');
             document.getElementById('savedFilesView').classList.add('active');
+            selectedIds.clear(); // Reset selections
+            document.getElementById('selectAll').checked = false;
             renderTable();
         }
 
@@ -495,70 +524,14 @@
             document.getElementById('editorView').classList.add('active');
         }
 
-        // --- CLONE & RENAME LOGIC ---
-        function cloneSave(id) {
-            let saves = getSaves();
-            const original = saves.find(s => s.id === id);
-            if (!original) return;
-
-            let baseName = original.name;
-            let counter = 2;
-
-            const match = baseName.match(/^(.*) \((\d+)\)$/);
-            if (match) {
-                baseName = match[1];
-            }
-
-            let newName = `${baseName} (${counter})`;
-            while (saves.some(s => s.name === newName)) {
-                counter++;
-                newName = `${baseName} (${counter})`;
-            }
-
-            const newSave = {
-                id: Date.now(),
-                name: newName,
-                data: {...original.data},
-                date: new Date().toLocaleString()
-            };
-            
-            saves.push(newSave);
-            localStorage.setItem('portfolioSaves', JSON.stringify(saves));
-            renderTable();
-        }
-
-        function renameSave(id, newName) {
-            newName = newName.trim();
-            if (!newName) {
-                alert("File name cannot be empty.");
-                renderTable();
-                return;
-            }
-
-            if (!confirm(`Are you sure you want to rename this file to "${newName}"?`)) {
-                renderTable();
-                return;
-            }
-
-            let saves = getSaves();
-            const save = saves.find(s => s.id === id);
-            if (save) {
-                save.name = newName;
-                localStorage.setItem('portfolioSaves', JSON.stringify(saves));
-                if (currentSaveId === id) {
-                    document.getElementById('exportFileName').value = newName;
-                }
-                renderTable();
-            }
-        }
-
+        // --- TABLE & BULK ACTIONS ---
         function renderTable() {
             const tbody = document.getElementById('fileTableBody');
             const msg = document.getElementById('noDataMsg');
             tbody.innerHTML = '';
             
             let saves = getSaves();
-            saves.sort((a, b) => a.name.localeCompare(b.name));
+            saves.sort((a, b) => b.id - a.id); // Newest first
 
             if (saves.length === 0) {
                 msg.style.display = 'block';
@@ -568,7 +541,25 @@
 
             saves.forEach(save => {
                 const tr = document.createElement('tr');
+                if (selectedIds.has(save.id)) tr.classList.add('selected');
                 
+                // Click on row to toggle selection (ignore inputs/buttons)
+                tr.onclick = (e) => {
+                    if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
+                        toggleSelection(save.id);
+                    }
+                };
+
+                // Checkbox
+                const tdCheck = document.createElement('td');
+                tdCheck.className = 'checkbox-cell';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = selectedIds.has(save.id);
+                checkbox.onclick = (e) => { e.stopPropagation(); toggleSelection(save.id); };
+                tdCheck.appendChild(checkbox);
+
+                // Name
                 const tdName = document.createElement('td');
                 const divWrapper = document.createElement('div');
                 divWrapper.style.display = 'flex';
@@ -576,50 +567,227 @@
                 
                 const btnClone = document.createElement('button');
                 btnClone.className = 'btn-info';
-                btnClone.innerText = '© Clone';
+                btnClone.innerText = '©';
                 btnClone.title = 'Clone this file';
-                btnClone.style.padding = '4px 8px';
+                btnClone.style.padding = '2px 6px';
                 btnClone.style.fontSize = '12px';
                 btnClone.style.marginRight = '10px';
                 btnClone.style.width = 'auto';
-                btnClone.onclick = () => cloneSave(save.id);
+                btnClone.onclick = (e) => { e.stopPropagation(); cloneSave(save.id); };
                 
                 const inputName = document.createElement('input');
                 inputName.type = 'text';
                 inputName.value = save.name;
                 inputName.className = 'name-input'; 
+                inputName.onclick = (e) => e.stopPropagation();
                 inputName.onchange = () => renameSave(save.id, inputName.value);
 
                 divWrapper.appendChild(btnClone);
                 divWrapper.appendChild(inputName);
                 tdName.appendChild(divWrapper);
 
+                // Date
                 const tdDate = document.createElement('td');
                 tdDate.style.color = '#555';
                 tdDate.innerText = save.date;
 
+                // Actions
                 const tdAction = document.createElement('td');
                 tdAction.className = 'action-cell';
                 tdAction.innerHTML = `
-                    <button class="btn-primary" onclick="loadSave(${save.id})">✏️ Edit / Load</button>
-                    <button class="btn-danger" onclick="deleteSave(${save.id})">🗑 Delete</button>
+                    <button class="btn-primary" onclick="event.stopPropagation(); loadSave(${save.id})">✏️ Edit</button>
+                    <button class="btn-danger" onclick="event.stopPropagation(); deleteSave(${save.id})">🗑</button>
                 `;
 
+                tr.appendChild(tdCheck);
                 tr.appendChild(tdName);
                 tr.appendChild(tdDate);
                 tr.appendChild(tdAction);
                 tbody.appendChild(tr);
             });
+            
+            updateSelectAllState(saves.length);
+        }
+
+        function toggleSelection(id) {
+            if (selectedIds.has(id)) {
+                selectedIds.delete(id);
+            } else {
+                selectedIds.add(id);
+            }
+            renderTable();
+        }
+
+        function toggleSelectAll() {
+            const allChecked = document.getElementById('selectAll').checked;
+            const saves = getSaves();
+            if (allChecked) {
+                saves.forEach(s => selectedIds.add(s.id));
+            } else {
+                selectedIds.clear();
+            }
+            renderTable();
+        }
+
+        function updateSelectAllState(totalCount) {
+            const cb = document.getElementById('selectAll');
+            if (totalCount > 0 && selectedIds.size === totalCount) {
+                cb.checked = true;
+                cb.indeterminate = false;
+            } else if (selectedIds.size > 0) {
+                cb.checked = false;
+                cb.indeterminate = true;
+            } else {
+                cb.checked = false;
+                cb.indeterminate = false;
+            }
+        }
+
+        function deleteSelected() {
+            if (selectedIds.size === 0) { alert("Please select files first."); return; }
+            if (!confirm(`Are you sure you want to delete ${selectedIds.size} files?`)) return;
+
+            let saves = getSaves();
+            saves = saves.filter(s => !selectedIds.has(s.id));
+            localStorage.setItem('portfolioSaves', JSON.stringify(saves));
+            
+            if (selectedIds.has(currentSaveId)) currentSaveId = null;
+            selectedIds.clear();
+            renderTable();
+        }
+
+        async function exportSelected() {
+            if (selectedIds.size === 0) { alert("Please select files first."); return; }
+            
+            const saves = getSaves();
+            const selectedFiles = saves.filter(s => selectedIds.has(s.id));
+            
+            if (!confirm(`Export ${selectedFiles.length} files to a single PDF?`)) return;
+
+            showLoader(true, "Preparing Bulk Export...");
+            
+            // Need to switch to editor view briefly to render
+            const originalView = document.querySelector('.view-section.active').id;
+            const originalData = {
+                id: currentSaveId,
+                name: document.getElementById('exportFileName').value,
+                data: {}
+            };
+            fields.forEach(f => originalData.data[f.id] = document.getElementById('input_' + f.id).value);
+
+            showEditor();
+            document.body.classList.add('printing');
+            
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'pt', 'a4');
+            const pageContainer = document.getElementById('page-container');
+
+            try {
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const file = selectedFiles[i];
+                    updateLoader((i / selectedFiles.length) * 100, `Processing: ${file.name}`);
+                    
+                    // 1. Load Data
+                    fields.forEach(field => {
+                        const val = file.data[field.id] || "";
+                        updateOverlayText(field.id, val);
+                        // We don't need to update Inputs, just the overlays for printing
+                    });
+
+                    // 2. Wait for render
+                    await new Promise(r => setTimeout(r, 500));
+
+                    // 3. Capture
+                    const canvas = await html2canvas(pageContainer, { scale: 2, useCORS: true, logging: false });
+                    const imgData = canvas.toDataURL('image/jpeg', 0.90);
+                    const imgProps = pdf.getImageProperties(imgData);
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+                    if (i > 0) pdf.addPage();
+                    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                }
+
+                pdf.save(`Portfolio_Export_${new Date().toISOString().slice(0,10)}.pdf`);
+                
+            } catch (e) {
+                console.error(e);
+                alert("Export Error: " + e.message);
+            } finally {
+                // Restore State
+                document.body.classList.remove('printing');
+                
+                // Restore original form data
+                if (originalData.id) currentSaveId = originalData.id;
+                document.getElementById('exportFileName').value = originalData.name;
+                fields.forEach(field => {
+                    const val = originalData.data[field.id];
+                    document.getElementById('input_'+field.id).value = val;
+                    updateOverlayText(field.id, val);
+                });
+
+                if (originalView === 'savedFilesView') showSavedFiles();
+                showLoader(false);
+            }
+        }
+
+        // --- HELPER FUNCTIONS ---
+        function showLoader(show, text = "") {
+            const el = document.getElementById('loading');
+            el.style.display = show ? 'flex' : 'none';
+            document.getElementById('loadingText').innerText = text;
+            document.getElementById('loadingFill').style.width = '0%';
+        }
+
+        function updateLoader(percent, text) {
+            document.getElementById('loadingFill').style.width = percent + '%';
+            document.getElementById('loadingText').innerText = text;
+        }
+
+        function cloneSave(id) {
+            let saves = getSaves();
+            const original = saves.find(s => s.id === id);
+            if (!original) return;
+
+            let baseName = original.name;
+            let counter = 2;
+            const match = baseName.match(/^(.*) \((\d+)\)$/);
+            if (match) baseName = match[1];
+
+            let newName = `${baseName} (${counter})`;
+            while (saves.some(s => s.name === newName)) {
+                counter++;
+                newName = `${baseName} (${counter})`;
+            }
+
+            saves.push({
+                id: Date.now(),
+                name: newName,
+                data: {...original.data},
+                date: new Date().toLocaleString()
+            });
+            localStorage.setItem('portfolioSaves', JSON.stringify(saves));
+            renderTable();
+        }
+
+        function renameSave(id, newName) {
+            newName = newName.trim();
+            if (!newName) { alert("Name cannot be empty"); renderTable(); return; }
+            let saves = getSaves();
+            const save = saves.find(s => s.id === id);
+            if (save) {
+                save.name = newName;
+                localStorage.setItem('portfolioSaves', JSON.stringify(saves));
+                renderTable();
+            }
         }
 
         function loadSave(id) {
             const saves = getSaves();
             const save = saves.find(s => s.id === id);
             if (!save) return;
-
             currentSaveId = save.id;
             document.getElementById('exportFileName').value = save.name;
-
             fields.forEach(field => {
                 const input = document.getElementById('input_' + field.id);
                 const value = save.data[field.id] || "";
@@ -628,35 +796,22 @@
                     updateOverlayText(field.id, value);
                 }
             });
-
             showEditor();
         }
 
         function deleteSave(id) {
-            if (!confirm("Are you sure you want to delete this file?")) return;
-            
+            if (!confirm("Delete this file?")) return;
             let saves = getSaves();
             saves = saves.filter(s => s.id !== id);
             localStorage.setItem('portfolioSaves', JSON.stringify(saves));
-            
             if (currentSaveId === id) currentSaveId = null;
             renderTable();
         }
 
-        function deleteAllData() {
-            if (confirm("WARNING: This will delete ALL saved files.\nAre you sure?")) {
-                localStorage.removeItem('portfolioSaves');
-                currentSaveId = null;
-                renderTable();
-            }
-        }
-
         function resetForm() {
-            if (!confirm("Start a new form? Unsaved changes will be lost.")) return;
-            
+            if (!confirm("Start new form?")) return;
             currentSaveId = null;
             document.getElementById('exportFileName').value = "";
-            
             fields.forEach(field => {
                 const input = document.getElementById('input_' + field.id);
                 input.value = field.defaultValue || "";
@@ -665,34 +820,20 @@
         }
 
         // --- PDF & FORM GENERATION ---
-
         function generateForm() {
             const container = document.getElementById('formContainer');
             container.innerHTML = '';
             fields.forEach(field => {
                 const group = document.createElement('div');
                 group.className = 'form-group';
-                
                 const label = document.createElement('label');
                 label.innerText = field.label;
-                
                 let input;
-                if (field.type === 'textarea') {
-                    input = document.createElement('textarea');
-                } else {
-                    input = document.createElement('input');
-                    input.type = field.type;
-                }
+                if (field.type === 'textarea') input = document.createElement('textarea');
+                else { input = document.createElement('input'); input.type = field.type; }
                 input.id = 'input_' + field.id;
-                
-                if (field.defaultValue) {
-                    input.value = field.defaultValue;
-                }
-                
-                input.addEventListener('input', (e) => {
-                    updateOverlayText(field.id, e.target.value);
-                });
-
+                if (field.defaultValue) input.value = field.defaultValue;
+                input.addEventListener('input', (e) => updateOverlayText(field.id, e.target.value));
                 group.appendChild(label);
                 group.appendChild(input);
                 container.appendChild(group);
@@ -707,19 +848,16 @@
                 pdfData = event.target.result;
                 await loadPdf(pdfData);
                 document.getElementById('templateStatus').innerHTML = "✅ Manual Template Loaded";
-                document.getElementById('templateStatus').style.color = "green";
             };
             reader.readAsArrayBuffer(file);
         }
 
         async function loadPdf(data) {
-            document.getElementById('loading').style.display = 'flex';
             document.getElementById('workspace').innerHTML = '';
             try {
                 pdfDoc = await pdfjsLib.getDocument(data).promise;
                 await renderPage(1); 
             } catch (err) { alert("Error: " + err.message); } 
-            finally { document.getElementById('loading').style.display = 'none'; }
         }
 
         async function renderPage(num) {
@@ -735,8 +873,7 @@
             canvas.width = viewport.width;
             pageContainer.appendChild(canvas);
             document.getElementById('workspace').appendChild(pageContainer);
-            const renderCtx = { canvasContext: canvas.getContext('2d'), viewport: viewport };
-            await page.render(renderCtx).promise;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
             initOverlays(viewport);
         }
 
@@ -747,22 +884,14 @@
                 const div = document.createElement('div');
                 div.id = 'overlay_' + field.id;
                 div.className = 'text-overlay';
-                
                 div.style.left = (field.x * ratio) + 'px';
                 div.style.top = (field.y * ratio) + 'px';
                 div.style.width = (field.w * ratio) + 'px';
                 div.style.height = (field.h * ratio) + 'px';
                 div.style.fontSize = (11 * ratio) + 'px'; 
-                
-                if (field.indent) {
-                    div.style.textIndent = field.indent;
-                }
-
+                if (field.indent) div.style.textIndent = field.indent;
                 const inputElement = document.getElementById('input_' + field.id);
-                if (inputElement && inputElement.value) {
-                    div.textContent = inputElement.value;
-                }
-
+                if (inputElement && inputElement.value) div.textContent = inputElement.value;
                 makeDraggable(div);
                 container.appendChild(div);
             });
@@ -776,47 +905,29 @@
         function makeDraggable(el) {
             let isDragging = false;
             let startX, startY, startLeft, startTop;
-            
             el.addEventListener('mousedown', (e) => {
                 if (!document.body.classList.contains('edit-mode')) return;
-                
-                const rect = el.getBoundingClientRect();
-                const isResizeHandle = (e.clientX > rect.right - 15 && e.clientY > rect.bottom - 15);
-                
-                if (isResizeHandle) return; 
-
                 isDragging = true;
-                startX = e.clientX;
-                startY = e.clientY;
-                startLeft = el.offsetLeft;
-                startTop = el.offsetTop;
-                e.stopPropagation();
+                startX = e.clientX; startY = e.clientY;
+                startLeft = el.offsetLeft; startTop = el.offsetTop;
             });
-
             window.addEventListener('mousemove', (e) => {
                 if (!isDragging) return;
                 el.style.left = `${startLeft + (e.clientX - startX)}px`;
                 el.style.top = `${startTop + (e.clientY - startY)}px`;
             });
-
             window.addEventListener('mouseup', () => isDragging = false);
         }
 
         async function exportPDF() {
-            if (!pdfData) { alert("Template not loaded yet. Please wait or upload manually."); return; }
-            
+            if (!pdfData) { alert("Template not loaded."); return; }
             const nameInput = document.getElementById('exportFileName');
             let fileName = nameInput.value.trim();
-            if(!fileName) {
-                alert("Please enter a file name before downloading.");
-                nameInput.focus();
-                return;
-            }
+            if(!fileName) { alert("Enter file name"); nameInput.focus(); return; }
 
-            document.getElementById('loading').style.display = 'flex';
-            document.body.classList.add('printing'); 
-            
-            await new Promise(r => setTimeout(r, 800)); 
+            showLoader(true, "Exporting PDF...");
+            document.body.classList.add('printing');
+            await new Promise(r => setTimeout(r, 800));
             
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF('p', 'pt', 'a4');
@@ -828,13 +939,12 @@
                 const imgProps = pdf.getImageProperties(imgData);
                 const pdfWidth = pdf.internal.pageSize.getWidth();
                 const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-                
                 pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
                 pdf.save(`${fileName}.pdf`);
-            } catch (err) { console.error(err); alert("Export failed."); } 
+            } catch (err) { alert("Export failed."); } 
             finally {
                 document.body.classList.remove('printing');
-                document.getElementById('loading').style.display = 'none';
+                showLoader(false);
             }
         }
     </script>
