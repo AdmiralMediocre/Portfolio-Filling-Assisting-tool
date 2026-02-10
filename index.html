@@ -3,99 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Khmer Portfolio Manager - Welcome</title>
-    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <title>Khmer Clinical Portfolio Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #004e92;
             --secondary: #003366;
-            --accent: #ffc107;
-            --light-bg: #f8f9fa;
-            --text-dark: #333;
+            --accent: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
+            --light: #f8f9fa;
+            --dark: #343a40;
         }
 
         body {
             font-family: 'Roboto', 'Battambang', sans-serif;
             margin: 0;
             padding: 0;
-            background-color: var(--light-bg);
-            color: var(--text-dark);
+            background-color: var(--light);
+            color: var(--dark);
             line-height: 1.6;
         }
 
+        /* --- HERO SECTION --- */
         header {
             background: linear-gradient(135deg, var(--secondary), var(--primary));
             color: white;
-            padding: 40px 20px;
+            padding: 60px 20px;
             text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
         header h1 {
-            margin: 0;
             font-size: 2.5rem;
+            margin-bottom: 10px;
             font-weight: 700;
         }
 
         header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
-            margin-top: 10px;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: 40px auto;
-            padding: 0 20px;
-        }
-
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            border-left: 5px solid var(--primary);
-        }
-
-        .card h2 {
-            color: var(--primary);
-            margin-top: 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .btn-start {
-            display: inline-block;
-            background-color: var(--primary);
-            color: white;
-            padding: 15px 40px;
             font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto 30px auto;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background-color: var(--accent);
+            color: white;
+            padding: 15px 30px;
             border-radius: 50px;
             text-decoration: none;
             font-weight: bold;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 78, 146, 0.3);
+            font-size: 1.1rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: transform 0.2s, background 0.2s;
         }
 
-        .btn-start:hover {
-            background-color: var(--secondary);
+        .cta-button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 78, 146, 0.4);
+            background-color: #218838;
         }
 
-        .warning-box {
-            background-color: #fff3cd;
-            border-left: 5px solid #ffc107;
-            padding: 20px;
+        /* --- CONTAINER --- */
+        .container {
+            max-width: 900px;
+            margin: -30px auto 40px auto;
+            background: white;
             border-radius: 8px;
-            margin-top: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 40px;
+            position: relative;
         }
 
-        .warning-box h3 {
+        /* --- SECTIONS --- */
+        section {
+            margin-bottom: 40px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 30px;
+        }
+
+        section:last-child {
+            border-bottom: none;
+        }
+
+        h2 {
+            color: var(--primary);
+            border-left: 5px solid var(--accent);
+            padding-left: 15px;
             margin-top: 0;
-            color: #856404;
+        }
+
+        h3 {
+            color: var(--secondary);
+            margin-top: 20px;
         }
 
         ul {
@@ -106,12 +106,58 @@
             margin-bottom: 10px;
         }
 
+        /* --- WARNING BOX --- */
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 20px;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+
+        .warning-box strong {
+            color: #533f03;
+        }
+
+        /* --- BUG TABLE --- */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        /* --- FOOTER --- */
         footer {
             text-align: center;
             padding: 20px;
             color: #666;
             font-size: 0.9rem;
-            margin-top: 50px;
+        }
+
+        .highlight {
+            background-color: #e8f0fe;
+            padding: 2px 5px;
+            border-radius: 4px;
+            color: var(--primary);
+            font-family: monospace;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 600px) {
+            header h1 { font-size: 1.8rem; }
+            .container { margin: 0; border-radius: 0; padding: 20px; }
         }
     </style>
 </head>
@@ -119,53 +165,97 @@
 
     <header>
         <h1>Khmer Clinical Portfolio Manager</h1>
-        <p>A digital tool for medical students to fill, save, and export clinical records.</p>
+        <p>A digital solution for medical students to fill, save, and export their clinical logbooks (Appendix 1) efficiently.</p>
+        
+        <a href="app.html" class="cta-button">🚀 Launch Tool Now</a>
     </header>
 
     <div class="container">
-        
-        <div class="card">
-            <h2>👋 Introduction</h2>
-            <p>
-                Welcome to the <strong>Clinical Portfolio Manager</strong>. This web application is designed to help medical students 
-                digitally fill out their clinical attachment logbooks (Portfolio) without needing physical paper.
-            </p>
-            <p>
-                You can type your patient cases directly into the form, save them to your browser for later editing, and download 
-                a perfectly formatted PDF ready for submission.
-            </p>
+
+        <section>
+            <h2>👋 Welcome / សួស្តី</h2>
+            <p>Welcome to the digital era of clinical documentation. This tool is designed to replace handwritten logbooks with a clean, digital interface that overlays your text directly onto the standard PDF template.</p>
+            <p><strong>Key Features:</strong></p>
+            <ul>
+                <li><strong>Offline Capable:</strong> Works 100% without internet after the first load.</li>
+                <li><strong>Auto-Save Database:</strong> Your cases are saved in your browser history. You can close the tab and come back later.</li>
+                <li><strong>Bulk Export:</strong> Select multiple cases and export them into a single PDF logbook.</li>
+                <li><strong>Khmer Support:</strong> Full support for Unicode Khmer fonts (Battambang).</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>📝 How to Use</h2>
             
-            <div style="text-align: center; margin-top: 30px;">
-                <a href="Port filling saving Working linked .html" class="btn-start">🚀 Open Portfolio Manager</a>
+            <h3>1. Filling the Form</h3>
+            <p>On the left sidebar, enter the patient details, diagnosis, and your reflection. The text will automatically appear on the PDF preview on the right.</p>
+            
+            <h3>2. Saving Data</h3>
+            <p>Click the <span class="highlight">💾 Save Data</span> button. This saves the entry to your local "Saved Files" list. Always save before exporting!</p>
+
+            <h3>3. Managing Files</h3>
+            <p>Click <span class="highlight">📂 View Saved Files</span> to see your history. From here you can:</p>
+            <ul>
+                <li><strong>Edit:</strong> Re-open an old case to make changes.</li>
+                <li><strong>Clone:</strong> Duplicate a case (useful if patient details are similar).</li>
+                <li><strong>Delete:</strong> Remove unwanted entries.</li>
+            </ul>
+
+            <h3>4. Exporting to PDF</h3>
+            <p>You have two options:</p>
+            <ul>
+                <li><strong>Single Export:</strong> Click "Download PDF" in the editor to download the current page.</li>
+                <li><strong>Bulk Export (Recommended):</strong> Go to the "Saved Files" list, tick the checkboxes of the cases you want, and click <span class="highlight">⬇️ Export Selected to PDF</span>. This creates one file containing all selected cases.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>⚠️ Important Warnings</h2>
+            <div class="warning-box">
+                <h3>💾 Data Privacy & Storage</h3>
+                <p><strong>1. Data is stored on YOUR Device:</strong> This tool does not send data to any server. Your patient data lives inside your web browser's "Local Storage".</p>
+                <p><strong>2. Do NOT Clear Cache:</strong> If you "Clear Browser History/Cache," you will lose your saved data. Please export your PDFs regularly as a backup.</p>
+                <p><strong>3. Device Specific:</strong> Data saved on your computer will not appear on your phone, and vice-versa.</p>
             </div>
-        </div>
+        </section>
 
-        <div class="card">
-            <h2>📝 Instructions</h2>
-            <ul>
-                <li><strong>Auto-Load:</strong> The system will automatically load the standard template (`Template.pdf`).</li>
-                <li><strong>Fill Data:</strong> Use the sidebar on the left to enter patient details, diagnosis, and reflections.</li>
-                <li><strong>Khmer Support:</strong> The tool fully supports typing in Khmer (Unicode).</li>
-                <li><strong>Save Work:</strong> Click "Save Data" to store your progress in your browser. You can close the tab and come back later.</li>
-                <li><strong>Manage Files:</strong> Use the "View Saved Files" button to see your history, edit old cases, or clone them.</li>
-                <li><strong>Export:</strong> When finished, click "Download PDF" to generate your final document.</li>
-            </ul>
-        </div>
-
-        <div class="warning-box">
-            <h3>⚠️ Important Warnings</h3>
-            <ul>
-                <li><strong>Browser Storage:</strong> Your saved files are stored in your <strong>web browser's local memory</strong> (LocalStorage).</li>
-                <li><strong>Do Not Clear Cache:</strong> If you clear your browser history/cache, you will <strong>LOSE ALL SAVED DATA</strong>.</li>
-                <li><strong>Device Specific:</strong> Data saved on your phone will not appear on your computer. You must export the PDF to move data.</li>
-                <li><strong>Privacy:</strong> No data is sent to any server. Everything stays 100% private on your device.</li>
-            </ul>
-        </div>
+        <section>
+            <h2>🔧 Troubleshooting & Bugs</h2>
+            <p>If you encounter issues, please check the table below for solutions.</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Problem / Bug</th>
+                        <th>Solution / Fix</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>❌ Auto-load failed</strong></td>
+                        <td>The embedded PDF template code might be missing. Use the "Manual Upload" button in the sidebar to select your <code>Template.pdf</code> file manually.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Text is misaligned</strong></td>
+                        <td>Toggle the <strong>"Unlock Positions"</strong> checkbox. You can then drag the text boxes on the preview to align them perfectly.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Khmer Font looks wrong</strong></td>
+                        <td>Ensure you have an internet connection when you first open the tool so it can load the Google Fonts. Once loaded, it works offline.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cannot Download PDF</strong></td>
+                        <td>Ensure you have entered a <strong>Filename</strong> in the sidebar. The tool will not export without a name.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
 
     </div>
 
     <footer>
-        <p>&copy; 2024 Clinical Portfolio Project. Designed for Medical Students.</p>
+        <p>Open Source Project | Hosted on GitHub Pages</p>
+        <p><i>Make sure to rename your main tool file to <strong>app.html</strong> for the launch button to work.</i></p>
     </footer>
 
 </body>
