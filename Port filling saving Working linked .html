@@ -281,7 +281,7 @@
             <h2>1. Setup</h2>
             
             <div style="font-size:12px; color:var(--primary); margin-bottom:10px; padding:5px; background:#f0f8ff; border-radius:4px;" id="templateStatus">
-                🔄 Searching for Template.pdf...
+                🔄 Searching for PDF template...
             </div>
 
             <details>
@@ -404,32 +404,46 @@
             });
         };
 
-        // --- ROBUST AUTO-LOAD FUNCTION ---
+        // --- AUTO-LOAD FUNCTION ---
         async function attemptAutoLoad() {
             const statusEl = document.getElementById('templateStatus');
-            // Try multiple variations of the filename to fix case-sensitivity issues
-            const candidates = ['Template.pdf', 'template.pdf', 'TEMPLATE.PDF'];
+            
+            // List of common filenames to try (Priority order)
+            // Add any other likely names here if needed
+            const candidates = [
+                'Template.pdf', 
+                'template.pdf', 
+                'Template.PDF', 
+                'portfolio.pdf',
+                'Portfolio.pdf',
+                'form.pdf' 
+            ];
             
             for (let filename of candidates) {
                 try {
-                    console.log(`Trying to load: ${filename}`);
-                    const response = await fetch(filename);
+                    // Try to fetch only the HEAD to check existence first (faster), or just fetch
+                    const response = await fetch(filename, { method: 'HEAD' });
+                    
                     if (response.ok) {
-                        const buffer = await response.arrayBuffer();
+                        console.log(`Found file: ${filename}`);
+                        // Now actually fetch the full file
+                        const fullResponse = await fetch(filename);
+                        const buffer = await fullResponse.arrayBuffer();
                         pdfData = buffer;
                         await loadPdf(pdfData);
                         
                         statusEl.innerHTML = `✅ Loaded: ${filename}`;
                         statusEl.style.color = "green";
-                        return; // Success! Stop trying.
+                        return; // Success! Stop checking other names.
                     }
                 } catch (e) {
-                    console.log(`Failed to load ${filename}:`, e);
+                    // Just continue to the next candidate
+                    console.log(`Check failed for ${filename}`);
                 }
             }
 
-            // If we get here, all attempts failed
-            statusEl.innerHTML = "⚠️ Auto-load failed. Please use 'Manual Upload'.";
+            // If we get here, no file matched
+            statusEl.innerHTML = "⚠️ Auto-load failed. Please rename your PDF to 'Template.pdf' or use Manual Upload.";
             statusEl.style.color = "#d9534f";
             document.getElementById('pdfUpload').parentElement.setAttribute('open', '');
         }
