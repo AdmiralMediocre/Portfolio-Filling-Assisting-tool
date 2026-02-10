@@ -279,11 +279,13 @@
     <div id="editorView" class="view-section active">
         <div id="sidebar">
             <h2>1. Setup</h2>
-            <div style="font-size:12px; color:var(--primary); margin-bottom:10px;" id="templateStatus">
-                🔄 Loading Template.pdf...
+            
+            <div style="font-size:12px; color:var(--primary); margin-bottom:10px; padding:5px; background:#f0f8ff; border-radius:4px;" id="templateStatus">
+                🔄 Searching for Template.pdf...
             </div>
+
             <details>
-                <summary style="font-size:11px; cursor:pointer; color:#666;">Manual Upload / Change Template</summary>
+                <summary style="font-size:11px; cursor:pointer; color:#666;">Manual Upload (If Auto-load fails)</summary>
                 <input type="file" id="pdfUpload" accept="application/pdf" style="margin-top:5px;">
             </details>
             <br>
@@ -393,8 +395,8 @@
         // --- INITIALIZATION ---
         window.onload = function() {
             generateForm(); 
-            // Attempt to load the default template automatically
-            loadDefaultTemplate();
+            // Attempt to load the default template (tries multiple names)
+            attemptAutoLoad();
             
             document.getElementById('pdfUpload').addEventListener('change', handlePdfUpload);
             document.getElementById('editToggle').addEventListener('change', (e) => {
@@ -402,30 +404,34 @@
             });
         };
 
-        async function loadDefaultTemplate() {
+        // --- ROBUST AUTO-LOAD FUNCTION ---
+        async function attemptAutoLoad() {
             const statusEl = document.getElementById('templateStatus');
-            try {
-                // IMPORTANT: 'Template.pdf' must be in the same folder as this HTML file
-                const response = await fetch('Template.pdf');
-                
-                if (!response.ok) {
-                    throw new Error("HTTP error " + response.status);
+            // Try multiple variations of the filename to fix case-sensitivity issues
+            const candidates = ['Template.pdf', 'template.pdf', 'TEMPLATE.PDF'];
+            
+            for (let filename of candidates) {
+                try {
+                    console.log(`Trying to load: ${filename}`);
+                    const response = await fetch(filename);
+                    if (response.ok) {
+                        const buffer = await response.arrayBuffer();
+                        pdfData = buffer;
+                        await loadPdf(pdfData);
+                        
+                        statusEl.innerHTML = `✅ Loaded: ${filename}`;
+                        statusEl.style.color = "green";
+                        return; // Success! Stop trying.
+                    }
+                } catch (e) {
+                    console.log(`Failed to load ${filename}:`, e);
                 }
-                
-                const buffer = await response.arrayBuffer();
-                pdfData = buffer;
-                await loadPdf(pdfData);
-                
-                statusEl.innerHTML = "✅ Template Loaded Automatically";
-                statusEl.style.color = "green";
-                
-            } catch (err) {
-                console.error("Auto-load failed:", err);
-                statusEl.innerHTML = "⚠️ Auto-load failed. Please use Manual Upload.";
-                statusEl.style.color = "red";
-                // If auto-load fails (e.g., local file CORS), ensure the user sees the manual upload
-                document.getElementById('pdfUpload').parentElement.setAttribute('open', '');
             }
+
+            // If we get here, all attempts failed
+            statusEl.innerHTML = "⚠️ Auto-load failed. Please use 'Manual Upload'.";
+            statusEl.style.color = "#d9534f";
+            document.getElementById('pdfUpload').parentElement.setAttribute('open', '');
         }
 
         // --- SAVE SYSTEM LOGIC ---
