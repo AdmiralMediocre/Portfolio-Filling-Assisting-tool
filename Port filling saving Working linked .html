@@ -281,7 +281,7 @@
             <h2>1. Setup</h2>
             
             <div style="font-size:12px; color:var(--primary); margin-bottom:10px; padding:5px; background:#f0f8ff; border-radius:4px;" id="templateStatus">
-                🔄 Searching for PDF template...
+                🔄 Searching for PDF file...
             </div>
 
             <details>
@@ -404,47 +404,46 @@
             });
         };
 
-        // --- AUTO-LOAD FUNCTION ---
+        // --- ROBUST AUTO-LOAD FUNCTION ---
         async function attemptAutoLoad() {
             const statusEl = document.getElementById('templateStatus');
+            statusEl.innerHTML = "🔄 Scanning for PDF file...";
             
-            // List of common filenames to try (Priority order)
-            // Add any other likely names here if needed
+            // WIDE NET: Try every possible casing variation
             const candidates = [
-                'Template.pdf','Template.pdf.pdf', 'template.pdf.pdf', 
+                'Template.pdf', 
                 'template.pdf', 
-                'Template.PDF', 
-                'portfolio.pdf',
+                'TEMPLATE.PDF', 
                 'Portfolio.pdf',
-                'form.pdf' 
+                'portfolio.pdf'
             ];
             
             for (let filename of candidates) {
                 try {
-                    // Try to fetch only the HEAD to check existence first (faster), or just fetch
-                    const response = await fetch(filename, { method: 'HEAD' });
+                    console.log(`Trying to fetch: ${filename}`);
+                    
+                    // DIRECT FETCH (No HEAD check to avoid CORS/Server issues)
+                    const response = await fetch(filename);
                     
                     if (response.ok) {
-                        console.log(`Found file: ${filename}`);
-                        // Now actually fetch the full file
-                        const fullResponse = await fetch(filename);
-                        const buffer = await fullResponse.arrayBuffer();
-                        pdfData = buffer;
-                        await loadPdf(pdfData);
-                        
-                        statusEl.innerHTML = `✅ Loaded: ${filename}`;
-                        statusEl.style.color = "green";
-                        return; // Success! Stop checking other names.
+                        const buffer = await response.arrayBuffer();
+                        if (buffer.byteLength > 0) {
+                            pdfData = buffer;
+                            await loadPdf(pdfData);
+                            
+                            statusEl.innerHTML = `✅ Loaded: ${filename}`;
+                            statusEl.style.color = "green";
+                            return; // Success! Stop loop.
+                        }
                     }
                 } catch (e) {
-                    // Just continue to the next candidate
-                    console.log(`Check failed for ${filename}`);
+                    console.log(`Fetch failed for ${filename}:`, e);
                 }
             }
 
-            // If we get here, no file matched
-            statusEl.innerHTML = "⚠️ Auto-load failed. Please rename your PDF to 'Template.pdf' or use Manual Upload.";
-            statusEl.style.color = "#d9534f";
+            // If loop finishes without success
+            statusEl.innerHTML = "❌ Auto-load failed. Please use 'Manual Upload' below.";
+            statusEl.style.color = "red";
             document.getElementById('pdfUpload').parentElement.setAttribute('open', '');
         }
 
@@ -844,4 +843,3 @@
     </script>
 </body>
 </html>
-
