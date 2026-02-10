@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Khmer & French Portfolio Manager</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #004e92;
+            --secondary: #003366;
+            --danger: #dc3545;
+            --bg: #525659;
+            --panel-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Battambang', 'Roboto', 'Arial', sans-serif;
+            margin: 0;
+            background-color: var(--bg);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- VIEWS --- */
+        .view-section {
+            display: none; /* Hidden by default */
+            width: 100%;
+            height: 100%;
+        }
+
+        .view-section.active {
+            display: flex;
+        }
+
+        /* --- EDITOR VIEW (Split Screen) --- */
+        #editorView {
+            flex-direction: row;
+        }
+
+        /* --- Sidebar --- */
+        #sidebar {
+            width: 380px;
+            background: var(--panel-bg);
+            border-right: 1px solid #ccc;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+
+        h2 { color: var(--primary); margin: 0 0 15px 0; font-size: 16px; border-bottom: 2px solid var(--primary); padding-bottom: 8px;}
+        
+        .form-group { margin-bottom: 10px; }
+
+        label {
+            display: block;
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 4px;
+            font-weight: bold;
+        }
+
+        input[type="text"], input[type="date"], textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: 'Battambang', 'Roboto', 'Arial', sans-serif;
+            box-sizing: border-box;
+            font-size: 13px;
+        }
+
+        /* Highlight the File Name input */
+        #exportFileName {
+            border: 2px solid var(--primary);
+            background-color: #f0f8ff;
+            font-weight: bold;
+        }
+
+        textarea { resize: vertical; height: 60px; }
+
+        input:focus, textarea:focus {
+            border-color: var(--primary);
+            outline: none;
+            background: #eef6fc;
+        }
+
+        /* --- BUTTONS --- */
+        .btn-group { margin-top: 20px; padding-bottom: 20px; display: flex; flex-direction: column; gap: 10px;}
+
+        button {
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'Battambang', sans-serif;
+            font-size: 14px;
+            width: 100%;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .btn-primary { background-color: var(--primary); }
+        .btn-primary:hover { background-color: var(--secondary); }
+
+        .btn-success { background-color: #28a745; }
+        .btn-success:hover { background-color: #218838; }
+
+        .btn-info { background-color: #17a2b8; }
+        .btn-info:hover { background-color: #138496; }
+
+        .btn-warning { background-color: #ffc107; color: #333; }
+        .btn-warning:hover { background-color: #e0a800; }
+
+        .btn-danger { background-color: var(--danger); }
+        .btn-danger:hover { background-color: #c82333; }
+
+        .toggle-edit {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ffeeba;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        /* --- PDF Workspace --- */
+        #workspace {
+            flex-grow: 1;
+            overflow: auto;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+            background-color: var(--bg);
+        }
+
+        .pdf-page-container {
+            position: relative;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            background: white;
+        }
+
+        .text-overlay {
+            position: absolute;
+            font-family: 'Battambang', 'Roboto', 'Arial', sans-serif;
+            color: #000;
+            line-height: 1.8; 
+            padding: 0 5px;
+            background: rgba(255, 230, 0, 0.1); 
+            border: 1px dotted rgba(0,0,0,0.1);
+            pointer-events: none; 
+            white-space: pre-wrap; 
+            overflow: hidden;
+            font-size: 11px;
+            box-sizing: border-box;
+        }
+
+        body.edit-mode .text-overlay {
+            border: 1px dashed red;
+            background: rgba(255, 0, 0, 0.1);
+            pointer-events: auto;
+            cursor: move;
+            resize: both; 
+            overflow: auto; 
+        }
+
+        .printing .text-overlay {
+            border: none !important;
+            background: transparent !important;
+            resize: none !important; 
+        }
+
+        /* --- SAVED FILES TABLE VIEW --- */
+        #savedFilesView {
+            background: white;
+            flex-direction: column;
+            padding: 40px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .table-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            vertical-align: middle;
+        }
+
+        th {
+            background-color: var(--primary);
+            color: white;
+            font-weight: bold;
+        }
+
+        tr:hover { background-color: #f5f5f5; }
+
+        .action-cell button {
+            width: auto;
+            display: inline-block;
+            margin-right: 5px;
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* Styles for the editable name input in the table */
+        .name-input {
+            border: 1px solid transparent;
+            background: transparent;
+            padding: 5px;
+            font-weight: bold;
+            color: var(--primary);
+            width: 100%;
+            transition: 0.2s;
+            border-radius: 4px;
+        }
+        .name-input:hover {
+            border: 1px solid #ccc;
+            background: #fff;
+        }
+        .name-input:focus {
+            border: 1px solid var(--primary);
+            background: #fff;
+            outline: none;
+        }
+
+        #loading {
+            position: fixed; top:0; left:0; right:0; bottom:0;
+            background: rgba(255,255,255,0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading"><h3>Processing...</h3></div>
+
+    <div id="editorView" class="view-section active">
+        <div id="sidebar">
+            <h2>1. Setup</h2>
+            <div style="font-size:12px; color:var(--primary); margin-bottom:10px;" id="templateStatus">
+                🔄 Loading Template.pdf...
+            </div>
+            <details>
+                <summary style="font-size:11px; cursor:pointer; color:#666;">Manual Upload / Change Template</summary>
+                <input type="file" id="pdfUpload" accept="application/pdf" style="margin-top:5px;">
+            </details>
+            <br>
+            <div class="toggle-edit">
+                <input type="checkbox" id="editToggle">
+                <label for="editToggle" style="margin:0; cursor:pointer;">Unlock Positions (Drag & Resize)</label>
+            </div>
+
+            <h2>2. File Details</h2>
+            <div class="form-group">
+                <label for="exportFileName" style="font-size:14px; color:var(--primary);">Filename (Save/Export Name):</label>
+                <input type="text" id="exportFileName" placeholder="Ex: Patient_A_Report">
+            </div>
+
+            <h2>3. Actions</h2>
+            <div class="btn-group">
+                <button class="btn-success" onclick="saveDataLocally()">💾 Save Data</button>
+                <button class="btn-info" onclick="showSavedFiles()">📂 View Saved Files</button>
+                <button class="btn-warning" onclick="resetForm()">📄 New Form</button>
+                <button class="btn-primary" onclick="exportPDF()">⬇️ Download PDF</button>
+            </div>
+
+            <h2>4. Fill Information</h2>
+            <div id="formContainer">
+                <p style="color:#666; font-size:13px;">Loading Form...</p>
+            </div>
+        </div>
+
+        <div id="workspace"></div>
+    </div>
+
+    <div id="savedFilesView" class="view-section">
+        <div class="table-container">
+            <div class="table-header">
+                <h1 style="color:var(--primary); margin:0;">Saved Files Database</h1>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn-primary" onclick="showEditor()" style="width:auto;">⬅ Back to Tool</button>
+                    <button class="btn-danger" onclick="deleteAllData()" style="width:auto;">🗑 Delete All Data</button>
+                </div>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 50%;">File Name (Edit to Rename)</th>
+                        <th style="width: 25%;">Last Modified</th>
+                        <th style="width: 25%;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="fileTableBody">
+                    </tbody>
+            </table>
+            <p id="noDataMsg" style="text-align:center; color:#666; margin-top:20px;">No saved files found.</p>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const fields = [
+            { id: "f_name", label: "ឈ្មោះនិស្សិត (Name)", type: "text", x: 157, y: 87, w: 157, h: 20 },
+            { id: "f_id", label: "ID", type: "text", x: 333, y: 87, w: 130, h: 20 },
+            { id: "f_date", label: "កាលបរិច្ឆេទ (Date)", type: "date", x: 183, y: 112, w: 87, h: 20 },
+            
+            { 
+                id: "f_req", label: "តម្រូវការកម្មសិក្សា (Requirement)", type: "text", x: 109, y: 138, w: 430, h: 43,
+                indent: "365px", defaultValue: "" 
+            },
+            
+            { id: "f_section", label: "កម្មសិក្សាផ្នែក (Section)", type: "text", x: 172, y: 182, w: 110, h: 20 },
+            { id: "f_hosp", label: "មន្ទីរពេទ្យ (Hospital)", type: "text", x: 150, y: 208, w: 170, h: 20 },
+            { id: "f_dept", label: "ផ្នែក (Department)", type: "text", x: 355, y: 208, w: 100, h: 20 },
+            { id: "f_p_name", label: "ឈ្មោះអ្នកជំងឺ (Pt Name)", type: "text", x: 153, y: 259, w: 82, h: 20 },
+            { id: "f_p_sex", label: "ភេទ (Sex)", type: "text", x: 254, y: 259, w: 32, h: 20 },
+            { id: "f_p_age", label: "អាយុ (Age)", type: "text", x: 311, y: 259, w: 31, h: 20 },
+            { id: "f_p_bed", label: "លេខគ្រែ (Bed #)", type: "text", x: 451, y: 259, w: 50, h: 20 },
+            { id: "f_diag", label: "រោគវិនិច្ឆ័យ (Diagnosis)", type: "text", x: 150, y: 284, w: 367, h: 20 },
+
+            { 
+                id: "f_desc", label: "ពិពណ៌នាជំហាន (Description)", type: "textarea", x: 95, y: 305, w: 460, h: 180,
+                indent: "335px", defaultValue: "" 
+            },
+            { 
+                id: "f_chal", label: "ការលំបាក (Challenges)", type: "textarea", x: 95, y: 487, w: 460, h: 60,
+                indent: "205px", defaultValue: ""
+            },
+            { 
+                id: "f_impr", label: "ចំណុចកែលម្អ (Improvements)", type: "textarea", x: 95, y: 552, w: 460, h: 60,
+                indent: "425px", defaultValue: ""
+            },
+            { 
+                id: "f_refl", label: "ការឆ្លុះបញ្ចាំង (Reflection)", type: "textarea", x: 95, y: 618, w: 460, h: 60,
+                indent: "455px", defaultValue: ""
+            },
+            { 
+                id: "f_doc", label: "យោបល់គ្រូពេទ្យ (Dr Opinion)", type: "textarea", x: 95, y: 711, w: 460, h: 40,
+                defaultValue: ""
+            }
+        ];
+
+        // --- GLOBAL VARIABLES ---
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        let pdfDoc = null;
+        let currentScale = 1.5; 
+        let pdfData = null;
+        let currentSaveId = null;
+
+        // --- INITIALIZATION ---
+        window.onload = function() {
+            generateForm(); 
+            // Attempt to load the default template automatically
+            loadDefaultTemplate();
+            
+            document.getElementById('pdfUpload').addEventListener('change', handlePdfUpload);
+            document.getElementById('editToggle').addEventListener('change', (e) => {
+                document.body.classList.toggle('edit-mode', e.target.checked);
+            });
+        };
+
+        async function loadDefaultTemplate() {
+            const statusEl = document.getElementById('templateStatus');
+            try {
+                // IMPORTANT: 'Template.pdf' must be in the same folder as this HTML file
+                const response = await fetch('Template.pdf');
+                
+                if (!response.ok) {
+                    throw new Error("HTTP error " + response.status);
+                }
+                
+                const buffer = await response.arrayBuffer();
+                pdfData = buffer;
+                await loadPdf(pdfData);
+                
+                statusEl.innerHTML = "✅ Template Loaded Automatically";
+                statusEl.style.color = "green";
+                
+            } catch (err) {
+                console.error("Auto-load failed:", err);
+                statusEl.innerHTML = "⚠️ Auto-load failed. Please use Manual Upload.";
+                statusEl.style.color = "red";
+                // If auto-load fails (e.g., local file CORS), ensure the user sees the manual upload
+                document.getElementById('pdfUpload').parentElement.setAttribute('open', '');
+            }
+        }
+
+        // --- SAVE SYSTEM LOGIC ---
+        function getSaves() {
+            return JSON.parse(localStorage.getItem('portfolioSaves') || '[]');
+        }
+
+        function saveDataLocally() {
+            const fileName = document.getElementById('exportFileName').value.trim();
+            if (!fileName) {
+                alert("Please enter a Filename at the top of the sidebar.");
+                document.getElementById('exportFileName').focus();
+                return;
+            }
+
+            const formData = {};
+            fields.forEach(field => {
+                formData[field.id] = document.getElementById('input_' + field.id).value;
+            });
+
+            let saves = getSaves();
+            const now = new Date().toLocaleString();
+
+            if (currentSaveId) {
+                const index = saves.findIndex(s => s.id === currentSaveId);
+                if (index !== -1) {
+                    saves[index].name = fileName;
+                    saves[index].data = formData;
+                    saves[index].date = now;
+                } else {
+                    currentSaveId = Date.now();
+                    saves.push({ id: currentSaveId, name: fileName, data: formData, date: now });
+                }
+            } else {
+                currentSaveId = Date.now();
+                saves.push({ id: currentSaveId, name: fileName, data: formData, date: now });
+            }
+
+            localStorage.setItem('portfolioSaves', JSON.stringify(saves));
+            alert("✅ File Saved Successfully!");
+        }
+
+        function showSavedFiles() {
+            document.getElementById('editorView').classList.remove('active');
+            document.getElementById('savedFilesView').classList.add('active');
+            renderTable();
+        }
+
+        function showEditor() {
+            document.getElementById('savedFilesView').classList.remove('active');
+            document.getElementById('editorView').classList.add('active');
+        }
+
+        // --- CLONE & RENAME LOGIC ---
+        function cloneSave(id) {
+            let saves = getSaves();
+            const original = saves.find(s => s.id === id);
+            if (!original) return;
+
+            let baseName = original.name;
+            let counter = 2;
+
+            const match = baseName.match(/^(.*) \((\d+)\)$/);
+            if (match) {
+                baseName = match[1];
+            }
+
+            let newName = `${baseName} (${counter})`;
+            while (saves.some(s => s.name === newName)) {
+                counter++;
+                newName = `${baseName} (${counter})`;
+            }
+
+            const newSave = {
+                id: Date.now(),
+                name: newName,
+                data: {...original.data},
+                date: new Date().toLocaleString()
+            };
+            
+            saves.push(newSave);
+            localStorage.setItem('portfolioSaves', JSON.stringify(saves));
+            renderTable();
+        }
+
+        function renameSave(id, newName) {
+            newName = newName.trim();
+            if (!newName) {
+                alert("File name cannot be empty.");
+                renderTable();
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to rename this file to "${newName}"?`)) {
+                renderTable();
+                return;
+            }
+
+            let saves = getSaves();
+            const save = saves.find(s => s.id === id);
+            if (save) {
+                save.name = newName;
+                localStorage.setItem('portfolioSaves', JSON.stringify(saves));
+                if (currentSaveId === id) {
+                    document.getElementById('exportFileName').value = newName;
+                }
+                renderTable();
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('fileTableBody');
+            const msg = document.getElementById('noDataMsg');
+            tbody.innerHTML = '';
+            
+            let saves = getSaves();
+            saves.sort((a, b) => a.name.localeCompare(b.name));
+
+            if (saves.length === 0) {
+                msg.style.display = 'block';
+                return;
+            }
+            msg.style.display = 'none';
+
+            saves.forEach(save => {
+                const tr = document.createElement('tr');
+                
+                const tdName = document.createElement('td');
+                const divWrapper = document.createElement('div');
+                divWrapper.style.display = 'flex';
+                divWrapper.style.alignItems = 'center';
+                
+                const btnClone = document.createElement('button');
+                btnClone.className = 'btn-info';
+                btnClone.innerText = '© Clone';
+                btnClone.title = 'Clone this file';
+                btnClone.style.padding = '4px 8px';
+                btnClone.style.fontSize = '12px';
+                btnClone.style.marginRight = '10px';
+                btnClone.style.width = 'auto';
+                btnClone.onclick = () => cloneSave(save.id);
+                
+                const inputName = document.createElement('input');
+                inputName.type = 'text';
+                inputName.value = save.name;
+                inputName.className = 'name-input'; 
+                inputName.onchange = () => renameSave(save.id, inputName.value);
+
+                divWrapper.appendChild(btnClone);
+                divWrapper.appendChild(inputName);
+                tdName.appendChild(divWrapper);
+
+                const tdDate = document.createElement('td');
+                tdDate.style.color = '#555';
+                tdDate.innerText = save.date;
+
+                const tdAction = document.createElement('td');
+                tdAction.className = 'action-cell';
+                tdAction.innerHTML = `
+                    <button class="btn-primary" onclick="loadSave(${save.id})">✏️ Edit / Load</button>
+                    <button class="btn-danger" onclick="deleteSave(${save.id})">🗑 Delete</button>
+                `;
+
+                tr.appendChild(tdName);
+                tr.appendChild(tdDate);
+                tr.appendChild(tdAction);
+                tbody.appendChild(tr);
+            });
+        }
+
+        function loadSave(id) {
+            const saves = getSaves();
+            const save = saves.find(s => s.id === id);
+            if (!save) return;
+
+            currentSaveId = save.id;
+            document.getElementById('exportFileName').value = save.name;
+
+            fields.forEach(field => {
+                const input = document.getElementById('input_' + field.id);
+                const value = save.data[field.id] || "";
+                if (input) {
+                    input.value = value;
+                    updateOverlayText(field.id, value);
+                }
+            });
+
+            showEditor();
+        }
+
+        function deleteSave(id) {
+            if (!confirm("Are you sure you want to delete this file?")) return;
+            
+            let saves = getSaves();
+            saves = saves.filter(s => s.id !== id);
+            localStorage.setItem('portfolioSaves', JSON.stringify(saves));
+            
+            if (currentSaveId === id) currentSaveId = null;
+            renderTable();
+        }
+
+        function deleteAllData() {
+            if (confirm("WARNING: This will delete ALL saved files.\nAre you sure?")) {
+                localStorage.removeItem('portfolioSaves');
+                currentSaveId = null;
+                renderTable();
+            }
+        }
+
+        function resetForm() {
+            if (!confirm("Start a new form? Unsaved changes will be lost.")) return;
+            
+            currentSaveId = null;
+            document.getElementById('exportFileName').value = "";
+            
+            fields.forEach(field => {
+                const input = document.getElementById('input_' + field.id);
+                input.value = field.defaultValue || "";
+                updateOverlayText(field.id, input.value);
+            });
+        }
+
+        // --- PDF & FORM GENERATION ---
+
+        function generateForm() {
+            const container = document.getElementById('formContainer');
+            container.innerHTML = '';
+            fields.forEach(field => {
+                const group = document.createElement('div');
+                group.className = 'form-group';
+                
+                const label = document.createElement('label');
+                label.innerText = field.label;
+                
+                let input;
+                if (field.type === 'textarea') {
+                    input = document.createElement('textarea');
+                } else {
+                    input = document.createElement('input');
+                    input.type = field.type;
+                }
+                input.id = 'input_' + field.id;
+                
+                if (field.defaultValue) {
+                    input.value = field.defaultValue;
+                }
+                
+                input.addEventListener('input', (e) => {
+                    updateOverlayText(field.id, e.target.value);
+                });
+
+                group.appendChild(label);
+                group.appendChild(input);
+                container.appendChild(group);
+            });
+        }
+
+        async function handlePdfUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                pdfData = event.target.result;
+                await loadPdf(pdfData);
+                document.getElementById('templateStatus').innerHTML = "✅ Manual Template Loaded";
+                document.getElementById('templateStatus').style.color = "green";
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function loadPdf(data) {
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('workspace').innerHTML = '';
+            try {
+                pdfDoc = await pdfjsLib.getDocument(data).promise;
+                await renderPage(1); 
+            } catch (err) { alert("Error: " + err.message); } 
+            finally { document.getElementById('loading').style.display = 'none'; }
+        }
+
+        async function renderPage(num) {
+            const page = await pdfDoc.getPage(num);
+            const viewport = page.getViewport({ scale: currentScale });
+            const pageContainer = document.createElement('div');
+            pageContainer.className = 'pdf-page-container';
+            pageContainer.style.width = `${viewport.width}px`;
+            pageContainer.style.height = `${viewport.height}px`;
+            pageContainer.id = 'page-container';
+            const canvas = document.createElement('canvas');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            pageContainer.appendChild(canvas);
+            document.getElementById('workspace').appendChild(pageContainer);
+            const renderCtx = { canvasContext: canvas.getContext('2d'), viewport: viewport };
+            await page.render(renderCtx).promise;
+            initOverlays(viewport);
+        }
+
+        function initOverlays(viewport) {
+            const container = document.getElementById('page-container');
+            const ratio = viewport.width / 595.276; 
+            fields.forEach(field => {
+                const div = document.createElement('div');
+                div.id = 'overlay_' + field.id;
+                div.className = 'text-overlay';
+                
+                div.style.left = (field.x * ratio) + 'px';
+                div.style.top = (field.y * ratio) + 'px';
+                div.style.width = (field.w * ratio) + 'px';
+                div.style.height = (field.h * ratio) + 'px';
+                div.style.fontSize = (11 * ratio) + 'px'; 
+                
+                if (field.indent) {
+                    div.style.textIndent = field.indent;
+                }
+
+                const inputElement = document.getElementById('input_' + field.id);
+                if (inputElement && inputElement.value) {
+                    div.textContent = inputElement.value;
+                }
+
+                makeDraggable(div);
+                container.appendChild(div);
+            });
+        }
+
+        function updateOverlayText(fieldId, text) {
+            const overlay = document.getElementById('overlay_' + fieldId);
+            if (overlay) overlay.textContent = text;
+        }
+
+        function makeDraggable(el) {
+            let isDragging = false;
+            let startX, startY, startLeft, startTop;
+            
+            el.addEventListener('mousedown', (e) => {
+                if (!document.body.classList.contains('edit-mode')) return;
+                
+                const rect = el.getBoundingClientRect();
+                const isResizeHandle = (e.clientX > rect.right - 15 && e.clientY > rect.bottom - 15);
+                
+                if (isResizeHandle) return; 
+
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                startLeft = el.offsetLeft;
+                startTop = el.offsetTop;
+                e.stopPropagation();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                el.style.left = `${startLeft + (e.clientX - startX)}px`;
+                el.style.top = `${startTop + (e.clientY - startY)}px`;
+            });
+
+            window.addEventListener('mouseup', () => isDragging = false);
+        }
+
+        async function exportPDF() {
+            if (!pdfData) { alert("Template not loaded yet. Please wait or upload manually."); return; }
+            
+            const nameInput = document.getElementById('exportFileName');
+            let fileName = nameInput.value.trim();
+            if(!fileName) {
+                alert("Please enter a file name before downloading.");
+                nameInput.focus();
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'flex';
+            document.body.classList.add('printing'); 
+            
+            await new Promise(r => setTimeout(r, 800)); 
+            
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'pt', 'a4');
+            const pageContainer = document.getElementById('page-container');
+            
+            try {
+                const canvas = await html2canvas(pageContainer, { scale: 2, useCORS: true, logging: false });
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const imgProps = pdf.getImageProperties(imgData);
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                
+                pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                pdf.save(`${fileName}.pdf`);
+            } catch (err) { console.error(err); alert("Export failed."); } 
+            finally {
+                document.body.classList.remove('printing');
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
