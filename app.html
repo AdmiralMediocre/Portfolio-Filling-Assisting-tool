@@ -476,7 +476,7 @@
             return JSON.parse(localStorage.getItem('portfolioSaves') || '[]');
         }
 
-        function saveDataLocally() {
+        function saveDataLocally(silent = false) {
             const fileName = document.getElementById('exportFileName').value.trim();
             if (!fileName) {
                 alert("Please enter a Filename at the top of the sidebar.");
@@ -508,7 +508,9 @@
             }
 
             localStorage.setItem('portfolioSaves', JSON.stringify(saves));
-            alert("✅ File Saved Successfully!");
+           if (!silent) {
+        alert("Data saved successfully!"); // Or whatever message you had
+    }
         }
 
         function showSavedFiles() {
@@ -947,6 +949,37 @@
                 showLoader(false);
             }
         }
+// ==========================================
+    // AUTOSAVE FEATURE (Added Update)
+    // ==========================================
+    
+    // 1. Setup a timer for "debouncing" (prevents saving on every single keystroke lag)
+    let autosaveTimer;
+    const autosaveDelay = 1000; // 1 second delay after you stop typing
+
+    // 2. Listen for changes in the sidebar form
+    const sidebarContainer = document.getElementById('sidebar');
+    
+    if (sidebarContainer) {
+        sidebarContainer.addEventListener('input', function(event) {
+            // Only autosave if the user is typing in a text field or textarea
+            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+                
+                // Clear the previous timer (reset the clock)
+                clearTimeout(autosaveTimer);
+
+                // Set a new timer to save after 1 second of inactivity
+                autosaveTimer = setTimeout(() => {
+                    // Call save with silent = true (No popup!)
+                    saveDataLocally(true); 
+                    
+                    // Optional: Visual indicator (e.g., log to console)
+                    console.log("Autosave triggered..."); 
+                }, autosaveDelay);
+            }
+        });
+    }
+
     </script>
 </body>
 </html>
