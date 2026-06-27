@@ -9,7 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
-    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700&family=Roboto:wght@400;700&family=Hanuman&family=Suwannaphum&family=Kantumruy+Pro:wght@400;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
@@ -72,7 +72,7 @@
             font-weight: bold;
         }
 
-        input[type="text"], input[type="date"], textarea {
+        input[type="text"], input[type="date"], input[type="number"], select, textarea {
             width: 100%;
             padding: 8px;
             border: 1px solid #ccc;
@@ -88,12 +88,21 @@
             font-weight: bold;
         }
 
-        textarea { resize: vertical; height: 60px; }
+        textarea { resize: vertical; min-height: 80px; }
 
-        input:focus, textarea:focus {
+        input:focus, textarea:focus, select:focus {
             border-color: var(--primary);
             outline: none;
             background: #eef6fc;
+        }
+
+        /* Formatting Controls Container */
+        .formatting-controls {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 15px;
         }
 
         /* --- BUTTONS --- */
@@ -171,6 +180,7 @@
             overflow: hidden;
             font-size: 11px;
             box-sizing: border-box;
+            word-wrap: break-word;
         }
 
         body.edit-mode .text-overlay {
@@ -335,6 +345,43 @@
             </div>
 
             <h2>4. Fill Information</h2>
+            
+            <div class="formatting-controls">
+                <div style="font-size:10px; color:#444; margin-bottom: 10px; text-align:center; background:#e9ecef; padding:6px; border-radius:4px; line-height: 1.4;">
+                    <strong>Default Settings:</strong><br>
+                    Font: Battambang | Size: 11 | Line Spacing: 1.8 | Up/Down: 0
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <div style="flex: 2;">
+                        <label for="globalFont" style="font-size:11px;">Font Family:</label>
+                        <select id="globalFont" onchange="updateTextStyles()">
+                            <option value="'Battambang', 'Roboto', 'Arial', sans-serif">Battambang (Default)</option>
+                            <option value="'Hanuman', serif">Hanuman</option>
+                            <option value="'Suwannaphum', serif">Suwannaphum</option>
+                            <option value="'Kantumruy Pro', sans-serif">Kantumruy Pro</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="globalFontSize" style="font-size:11px;">Size:</label>
+                        <input type="number" id="globalFontSize" value="11" step="0.5" onchange="updateTextStyles()" oninput="updateTextStyles()">
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                    <div style="flex: 1;">
+                        <label for="globalLineSpacing" style="font-size:11px;">Line Spacing:</label>
+                        <input type="number" id="globalLineSpacing" value="1.8" step="0.1" onchange="updateTextStyles()" oninput="updateTextStyles()">
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="globalYOffset" style="font-size:11px;">Up/Down (±):</label>
+                        <input type="number" id="globalYOffset" value="0" step="1" title="Positive moves down, Negative moves up" onchange="updateTextStyles()" oninput="updateTextStyles()">
+                    </div>
+                </div>
+                
+                <button class="btn-warning" style="font-size: 11px; padding: 6px 10px; width: 100%; color: #333; background-color: #ffeeba; border: 1px solid #ffc107;" onclick="resetGlobalStyles()">↩ Revert to Original Style</button>
+            </div>
+
             <div id="formContainer">
                 <p style="color:#666; font-size:13px;">Loading Form...</p>
             </div>
@@ -390,6 +437,7 @@
         // =================================================================================
 
         // --- CONFIGURATION ---
+        // ORIGINAL SPACING RETAINED TO LINE UP WITH DOTTED LINES
         const fields = [
             { id: "f_name", label: "ឈ្មោះនិស្សិត (Name)", type: "text", x: 157, y: 87, w: 157, h: 20 },
             { id: "f_id", label: "ID", type: "text", x: 333, y: 87, w: 130, h: 20 },
@@ -437,7 +485,8 @@
         let currentScale = 1.5; 
         let pdfData = null;
         let currentSaveId = null;
-        let selectedIds = new Set(); // For bulk actions
+        let selectedIds = new Set(); 
+        let pdfRatio = 1; 
 
         // --- INITIALIZATION ---
         window.onload = function() {
@@ -449,6 +498,48 @@
                 document.body.classList.toggle('edit-mode', e.target.checked);
             });
         };
+
+        // --- FORMATTING FUNCTIONS ---
+        function resetGlobalStyles() {
+            document.getElementById('globalFont').value = "'Battambang', 'Roboto', 'Arial', sans-serif";
+            document.getElementById('globalFontSize').value = "11";
+            document.getElementById('globalLineSpacing').value = "1.8";
+            document.getElementById('globalYOffset').value = "0";
+            updateTextStyles(); // Updates global styles without touching columns
+        }
+
+        function updateTextStyles() {
+            const fontFamily = document.getElementById('globalFont').value;
+            const fontSize = parseFloat(document.getElementById('globalFontSize').value) || 11;
+            const lineSpacing = parseFloat(document.getElementById('globalLineSpacing').value) || 1.8;
+            const yOffset = parseFloat(document.getElementById('globalYOffset').value) || 0;
+            
+            fields.forEach(field => {
+                const overlay = document.getElementById('overlay_' + field.id);
+                if (overlay) {
+                    overlay.style.fontFamily = fontFamily;
+                    overlay.style.fontSize = (fontSize * pdfRatio) + 'px';
+                    overlay.style.lineHeight = lineSpacing;
+                    
+                    // Applies Up/Down offset (Base Y + user's Offset Y)
+                    overlay.style.top = ((field.y + yOffset) * pdfRatio) + 'px';
+                }
+            });
+        }
+
+        function updateDescFormatting() {
+            const columns = document.getElementById('descColumns').value;
+            const overlay = document.getElementById('overlay_f_desc');
+            const val = document.getElementById('input_f_desc').value;
+            
+            if (overlay) {
+                overlay.style.columnCount = columns;
+                overlay.style.columnGap = (15 * pdfRatio) + 'px';
+            }
+            
+            // Re-trigger text placement logic to handle new splits
+            updateOverlayText('f_desc', val);
+        }
 
         // --- AUTO-LOAD EMBEDDED PDF ---
         async function loadEmbeddedPdf() {
@@ -524,7 +615,7 @@
         function showSavedFiles() {
             document.getElementById('editorView').classList.remove('active');
             document.getElementById('savedFilesView').classList.add('active');
-            selectedIds.clear(); // Reset selections
+            selectedIds.clear(); 
             document.getElementById('selectAll').checked = false;
             renderTable();
         }
@@ -541,7 +632,7 @@
             tbody.innerHTML = '';
             
             let saves = getSaves();
-            saves.sort((a, b) => b.id - a.id); // Newest first
+            saves.sort((a, b) => b.id - a.id);
 
             if (saves.length === 0) {
                 msg.style.display = 'block';
@@ -553,14 +644,12 @@
                 const tr = document.createElement('tr');
                 if (selectedIds.has(save.id)) tr.classList.add('selected');
                 
-                // Click on row to toggle selection (ignore inputs/buttons)
                 tr.onclick = (e) => {
                     if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
                         toggleSelection(save.id);
                     }
                 };
 
-                // Checkbox
                 const tdCheck = document.createElement('td');
                 tdCheck.className = 'checkbox-cell';
                 const checkbox = document.createElement('input');
@@ -569,7 +658,6 @@
                 checkbox.onclick = (e) => { e.stopPropagation(); toggleSelection(save.id); };
                 tdCheck.appendChild(checkbox);
 
-                // Name
                 const tdName = document.createElement('td');
                 const divWrapper = document.createElement('div');
                 divWrapper.style.display = 'flex';
@@ -596,12 +684,10 @@
                 divWrapper.appendChild(inputName);
                 tdName.appendChild(divWrapper);
 
-                // Date
                 const tdDate = document.createElement('td');
                 tdDate.style.color = '#555';
                 tdDate.innerText = save.date;
 
-                // Actions
                 const tdAction = document.createElement('td');
                 tdAction.className = 'action-cell';
                 tdAction.innerHTML = `
@@ -676,7 +762,6 @@
 
             showLoader(true, "Preparing Bulk Export...");
             
-            // Need to switch to editor view briefly to render
             const originalView = document.querySelector('.view-section.active').id;
             const originalData = {
                 id: currentSaveId,
@@ -697,17 +782,13 @@
                     const file = selectedFiles[i];
                     updateLoader((i / selectedFiles.length) * 100, `Processing: ${file.name}`);
                     
-                    // 1. Load Data
                     fields.forEach(field => {
                         const val = file.data[field.id] || "";
                         updateOverlayText(field.id, val);
-                        // We don't need to update Inputs, just the overlays for printing
                     });
 
-                    // 2. Wait for render
                     await new Promise(r => setTimeout(r, 500));
 
-                    // 3. Capture
                     const canvas = await html2canvas(pageContainer, { scale: 2, useCORS: true, logging: false });
                     const imgData = canvas.toDataURL('image/jpeg', 0.90);
                     const imgProps = pdf.getImageProperties(imgData);
@@ -724,10 +805,8 @@
                 console.error(e);
                 alert("Export Error: " + e.message);
             } finally {
-                // Restore State
                 document.body.classList.remove('printing');
                 
-                // Restore original form data
                 if (originalData.id) currentSaveId = originalData.id;
                 document.getElementById('exportFileName').value = originalData.name;
                 fields.forEach(field => {
@@ -751,21 +830,17 @@
             const saves = getSaves();
             const selectedFiles = saves.filter(s => selectedIds.has(s.id));
             
-            // Convert to formatted JSON
             const dataStr = JSON.stringify(selectedFiles, null, 2);
             
-            // Create a downloadable Blob
             const blob = new Blob([dataStr], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             
-            // Trigger download via hidden anchor
             const a = document.createElement("a");
             a.href = url;
             a.download = `Portfolio_DB_Backup_${new Date().toISOString().slice(0,10)}.json`;
             document.body.appendChild(a);
             a.click();
             
-            // Cleanup
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
@@ -787,9 +862,7 @@
                     let importedCount = 0;
 
                     importedData.forEach((importedItem, index) => {
-                        // Validate that it looks like a saved file object
                         if (importedItem.name && importedItem.data) {
-                            // Assign a brand new unique ID so it doesn't overwrite existing local files
                             const newId = Date.now() + index; 
                             
                             saves.push({
@@ -805,7 +878,7 @@
                     if (importedCount > 0) {
                         localStorage.setItem('portfolioSaves', JSON.stringify(saves));
                         alert(`Successfully imported ${importedCount} files into your local database!`);
-                        renderTable(); // Refresh the table to show new items
+                        renderTable(); 
                     } else {
                         alert("No valid portfolio files found in the imported document.");
                     }
@@ -814,7 +887,6 @@
                     alert("Error importing file. Please make sure you selected a valid JSON backup file generated by this tool.");
                 }
                 
-                // Clear the input value so the user can import the same file again if they want
                 event.target.value = "";
             };
             
@@ -884,6 +956,10 @@
                 if (input) {
                     input.value = value;
                     updateOverlayText(field.id, value);
+                    if(field.type === 'textarea') {
+                        input.style.height = 'auto';
+                        input.style.height = (input.scrollHeight) + 'px';
+                    }
                 }
             });
             showEditor();
@@ -906,6 +982,10 @@
                 const input = document.getElementById('input_' + field.id);
                 input.value = field.defaultValue || "";
                 updateOverlayText(field.id, input.value);
+                
+                if(field.type === 'textarea') {
+                    input.style.height = '80px';
+                }
             });
         }
 
@@ -918,13 +998,50 @@
                 group.className = 'form-group';
                 const label = document.createElement('label');
                 label.innerText = field.label;
+                group.appendChild(label);
+
+                // --- INJECT COLUMN SELECTOR ONLY FOR f_desc (Description) ---
+                if (field.id === 'f_desc') {
+                    const colSelectDiv = document.createElement('div');
+                    colSelectDiv.style.marginBottom = '6px';
+                    colSelectDiv.style.padding = '8px';
+                    colSelectDiv.style.background = '#e8f0fe';
+                    colSelectDiv.style.borderRadius = '4px';
+                    colSelectDiv.style.display = 'flex';
+                    colSelectDiv.style.gap = '10px';
+                    colSelectDiv.innerHTML = `
+                        <div style="flex:1;">
+                            <label for="descColumns" style="display:block; font-size:11px; font-weight:bold; color:#555; margin-bottom:4px;">Layout (Columns):</label>
+                            <select id="descColumns" onchange="updateDescFormatting()" style="width:100%; padding:4px; font-size:11px; border:1px solid #ccc; border-radius:3px;">
+                                <option value="1">1 Column (Default)</option>
+                                <option value="2">2 Columns</option>
+                                <option value="3">3 Columns</option>
+                            </select>
+                        </div>
+                        <div style="flex:1;">
+                            <label for="descColStart" style="display:block; font-size:11px; font-weight:bold; color:#555; margin-bottom:4px;">Col Start (Lines):</label>
+                            <input type="number" id="descColStart" value="1" min="1" onchange="updateDescFormatting()" oninput="updateDescFormatting()" style="width:100%; padding:4px; font-size:11px; border:1px solid #ccc; border-radius:3px;">
+                        </div>
+                    `;
+                    group.appendChild(colSelectDiv);
+                }
+
                 let input;
-                if (field.type === 'textarea') input = document.createElement('textarea');
-                else { input = document.createElement('input'); input.type = field.type; }
+                if (field.type === 'textarea') {
+                    input = document.createElement('textarea');
+                    input.addEventListener('input', function() {
+                        this.style.height = 'auto';
+                        this.style.height = (this.scrollHeight) + 'px';
+                    });
+                    input.style.overflow = "hidden";
+                }
+                else { 
+                    input = document.createElement('input'); 
+                    input.type = field.type; 
+                }
                 input.id = 'input_' + field.id;
                 if (field.defaultValue) input.value = field.defaultValue;
                 input.addEventListener('input', (e) => updateOverlayText(field.id, e.target.value));
-                group.appendChild(label);
                 group.appendChild(input);
                 container.appendChild(group);
             });
@@ -953,6 +1070,9 @@
         async function renderPage(num) {
             const page = await pdfDoc.getPage(num);
             const viewport = page.getViewport({ scale: currentScale });
+            
+            pdfRatio = viewport.width / 595.276; 
+            
             const pageContainer = document.createElement('div');
             pageContainer.className = 'pdf-page-container';
             pageContainer.style.width = `${viewport.width}px`;
@@ -964,33 +1084,123 @@
             pageContainer.appendChild(canvas);
             document.getElementById('workspace').appendChild(pageContainer);
             await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
-            initOverlays(viewport);
+            initOverlays();
         }
 
-        function initOverlays(viewport) {
+        function initOverlays() {
             const container = document.getElementById('page-container');
-            const ratio = viewport.width / 595.276; 
             fields.forEach(field => {
                 const div = document.createElement('div');
                 div.id = 'overlay_' + field.id;
                 div.className = 'text-overlay';
-                div.style.left = (field.x * ratio) + 'px';
-                div.style.top = (field.y * ratio) + 'px';
-                div.style.width = (field.w * ratio) + 'px';
-                div.style.height = (field.h * ratio) + 'px';
-                div.style.fontSize = (11 * ratio) + 'px'; 
+                div.style.left = (field.x * pdfRatio) + 'px';
+                div.style.top = (field.y * pdfRatio) + 'px';
+                div.style.width = (field.w * pdfRatio) + 'px';
+                div.style.height = (field.h * pdfRatio) + 'px';
+                div.style.fontSize = (11 * pdfRatio) + 'px'; 
                 if (field.indent) div.style.textIndent = field.indent;
+                
                 const inputElement = document.getElementById('input_' + field.id);
-                if (inputElement && inputElement.value) div.textContent = inputElement.value;
+                if (inputElement && inputElement.value) {
+                    // Temporarily set text directly, will be formatted fully on the next lines
+                    div.textContent = inputElement.value;
+                }
+                
                 makeDraggable(div);
                 container.appendChild(div);
             });
+            
+            // Apply current text styles from global dropdowns
+            updateTextStyles();
+            
+            // Re-apply description formatting based on default Column values
+            if(document.getElementById('input_f_desc')){
+                 updateDescFormatting();
+            }
         }
 
         function updateOverlayText(fieldId, text) {
             const overlay = document.getElementById('overlay_' + fieldId);
-            if (overlay) overlay.textContent = text;
+            if (!overlay) return;
+            
+            const fieldDef = fields.find(f => f.id === fieldId);
+            const originalIndent = fieldDef.indent || '0px';
+
+            if (fieldId === 'f_desc') {
+                const columns = parseInt(document.getElementById('descColumns')?.value) || 1;
+                // Read the lines to span. If user wants columns on line 2, this should be 1.
+                const colStartLines = parseInt(document.getElementById('descColStart')?.value) || 1; 
+
+                if (columns > 1 && colStartLines > 0 && text.length > 0) {
+                    overlay.innerHTML = '';
+                    overlay.style.textIndent = '0px'; // Clear indent from wrapper
+
+                    // 1. Create a hidden clone to measure natural text wrapping
+                    const tempDiv = document.createElement('div');
+                    tempDiv.style.width = '100%';
+                    tempDiv.style.textIndent = originalIndent;
+                    tempDiv.style.position = 'absolute';
+                    tempDiv.style.visibility = 'hidden';
+                    // Apply current font styles to tempDiv so it measures correctly
+                    tempDiv.style.fontFamily = overlay.style.fontFamily;
+                    tempDiv.style.fontSize = overlay.style.fontSize;
+                    tempDiv.style.lineHeight = overlay.style.lineHeight;
+                    
+                    overlay.appendChild(tempDiv);
+
+                    // 2. Measure the height of a single line of text
+                    tempDiv.textContent = 'A';
+                    const singleLineHeight = tempDiv.offsetHeight;
+                    // Add a 0.5 buffer to prevent sub-pixel rendering glitches
+                    const maxHeight = (singleLineHeight * colStartLines) + (singleLineHeight * 0.5);
+
+                    // 3. Binary Search to find the exact character where the text wraps
+                    let low = 0;
+                    let high = text.length;
+                    while (low < high) {
+                        let mid = Math.floor((low + high) / 2);
+                        tempDiv.textContent = text.substring(0, mid + 1);
+                        if (tempDiv.offsetHeight <= maxHeight) {
+                            low = mid + 1; // It fits, try adding more characters
+                        } else {
+                            high = mid; // It wrapped to a new line, pull back
+                        }
+                    }
+                    const splitIndex = low;
+                    overlay.removeChild(tempDiv);
+
+                    // 4. Split the text
+                    let spanText = text.substring(0, splitIndex);
+                    let restText = text.substring(splitIndex);
+
+                    // Clean up a leading space or newline on the column part to prevent awkward gaps
+                    if (restText.startsWith('\n') || restText.startsWith(' ')) {
+                        restText = restText.substring(1);
+                    }
+
+                    // 5. Apply the spanning text (Line 1)
+                    const spanDiv = document.createElement('div');
+                    spanDiv.style.columnSpan = 'all';
+                    spanDiv.style.webkitColumnSpan = 'all';
+                    spanDiv.style.textIndent = originalIndent;
+                    spanDiv.textContent = spanText;
+
+                    // 6. Apply the column text (Line 2+)
+                    const colDiv = document.createElement('div');
+                    colDiv.textContent = restText;
+                    
+                    overlay.appendChild(spanDiv);
+                    overlay.appendChild(colDiv);
+                } else {
+                    overlay.innerHTML = '';
+                    overlay.textContent = text;
+                    overlay.style.textIndent = originalIndent;
+                }
+            } else {
+                overlay.textContent = text;
+            }
         }
+
 
         function makeDraggable(el) {
             let isDragging = false;
@@ -1037,31 +1247,18 @@
                 showLoader(false);
             }
         }
-    // ==========================================
-    // AUTOSAVE FEATURE
-    // ==========================================
     
-    // 1. Setup a timer for "debouncing" (prevents saving on every single keystroke lag)
     let autosaveTimer;
-    const autosaveDelay = 1000; // 1 second delay after you stop typing
+    const autosaveDelay = 1000; 
 
-    // 2. Listen for changes in the sidebar form
     const sidebarContainer = document.getElementById('sidebar');
     
     if (sidebarContainer) {
         sidebarContainer.addEventListener('input', function(event) {
-            // Only autosave if the user is typing in a text field or textarea
             if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
-                
-                // Clear the previous timer (reset the clock)
                 clearTimeout(autosaveTimer);
-
-                // Set a new timer to save after 1 second of inactivity
                 autosaveTimer = setTimeout(() => {
-                    // Call save with silent = true (No popup!)
                     saveDataLocally(true); 
-                    
-                    // Optional: Visual indicator (e.g., log to console)
                     console.log("Autosave triggered..."); 
                 }, autosaveDelay);
             }
