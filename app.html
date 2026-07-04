@@ -380,7 +380,7 @@
                 </div>
 
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; background: #e8f0fe; padding: 8px; border-radius: 4px; border: 1px solid #c5d7f7;">
-                    <input type="checkbox" id="globalAutoFit" onchange="triggerFormattingUpdate()" style="width: auto; transform: scale(1.1); cursor: pointer; margin:0;">
+                    <input type="checkbox" id="globalAutoFit" onchange="triggerFormattingUpdate()" style="width: auto; transform: scale(1.1); cursor: pointer; margin:0;" checked>
                     <label for="globalAutoFit" style="margin: 0; font-size: 11px; cursor: pointer; color: var(--primary);">Auto-fit overflowing text to box</label>
                 </div>
                 
@@ -496,7 +496,7 @@ const pdfBase64 = "JVBERi0xLjcNCiW1tbW1DQoxIDAgb2JqDQo8PC9UeXBlL0NhdGFsb2cvUGFnZ
             descCols: "1",
             descStart: "2",
             descEnd: "9",
-            autoFit: false 
+            autoFit: true 
         };
 
         // --- INITIALIZATION ---
@@ -658,6 +658,10 @@ const pdfBase64 = "JVBERi0xLjcNCiW1tbW1DQoxIDAgb2JqDQo8PC9UeXBlL0NhdGFsb2cvUGFnZ
         function showEditor() {
             document.getElementById('savedFilesView').classList.remove('active');
             document.getElementById('editorView').classList.add('active');
+            // Force auto-fit recalculation now that the DOM is visible and heights are > 0
+            setTimeout(() => {
+                triggerFormattingUpdate();
+            }, 50);
         }
 
         // --- TABLE & BULK ACTIONS ---
@@ -796,13 +800,13 @@ const pdfBase64 = "JVBERi0xLjcNCiW1tbW1DQoxIDAgb2JqDQo8PC9UeXBlL0NhdGFsb2cvUGFnZ
                     const file = selectedFiles[i];
                     updateLoader((i / selectedFiles.length) * 100, `Processing: ${file.name}`);
                     
-                    const tempSettings = file.settings || {...DEFAULT_SETTINGS};
+                    const tempSettings = { ...DEFAULT_SETTINGS, ...(file.settings || {}) };
                     
                     document.getElementById('globalFont').value = tempSettings.font;
                     document.getElementById('globalFontSize').value = tempSettings.fontSize;
                     document.getElementById('globalLineSpacing').value = tempSettings.lineSpacing;
                     document.getElementById('globalYOffset').value = tempSettings.yOffset;
-                    document.getElementById('globalAutoFit').checked = tempSettings.autoFit || false;
+                    document.getElementById('globalAutoFit').checked = tempSettings.autoFit;
                     
                     if(document.getElementById('descColumns')) document.getElementById('descColumns').value = tempSettings.descCols;
                     if(document.getElementById('descColStart')) document.getElementById('descColStart').value = tempSettings.descStart;
@@ -840,7 +844,7 @@ const pdfBase64 = "JVBERi0xLjcNCiW1tbW1DQoxIDAgb2JqDQo8PC9UeXBlL0NhdGFsb2cvUGFnZ
                 document.getElementById('globalFontSize').value = originalSettings.fontSize;
                 document.getElementById('globalLineSpacing').value = originalSettings.lineSpacing;
                 document.getElementById('globalYOffset').value = originalSettings.yOffset;
-                document.getElementById('globalAutoFit').checked = originalSettings.autoFit || false;
+                document.getElementById('globalAutoFit').checked = originalSettings.autoFit;
                 
                 if(document.getElementById('descColumns')) document.getElementById('descColumns').value = originalSettings.descCols;
                 if(document.getElementById('descColStart')) document.getElementById('descColStart').value = originalSettings.descStart;
@@ -891,7 +895,7 @@ const pdfBase64 = "JVBERi0xLjcNCiW1tbW1DQoxIDAgb2JqDQo8PC9UeXBlL0NhdGFsb2cvUGFnZ
                     importedData.forEach((importedItem, index) => {
                         if (importedItem.name && importedItem.data) {
                             const newId = Date.now() + index; 
-                            const importedSettings = importedItem.settings || {...DEFAULT_SETTINGS};
+                            const importedSettings = { ...DEFAULT_SETTINGS, ...(importedItem.settings || {}) };
                             
                             saves.push({
                                 id: newId,
@@ -941,7 +945,7 @@ const pdfBase64 = "JVBERi0xLjcNCiW1tbW1DQoxIDAgb2JqDQo8PC9UeXBlL0NhdGFsb2cvUGFnZ
             let newName = `${baseName} (${counter})`;
             while (saves.some(s => s.name === newName)) { counter++; newName = `${baseName} (${counter})`; }
 
-            const cloneSettings = original.settings ? {...original.settings} : {...DEFAULT_SETTINGS};
+            const cloneSettings = { ...DEFAULT_SETTINGS, ...(original.settings || {}) };
 
             saves.push({
                 id: Date.now(),
@@ -971,15 +975,19 @@ const pdfBase64 = "JVBERi0xLjcNCiW1tbW1DQoxIDAgb2JqDQo8PC9UeXBlL0NhdGFsb2cvUGFnZ
             const save = saves.find(s => s.id === id);
             if (!save) return;
             currentSaveId = save.id;
+            
+            // MUST SHOW EDITOR FIRST so browser can measure text heights for auto-fit!
+            showEditor(); 
+            
             document.getElementById('exportFileName').value = save.name;
             
-            const settingsToLoad = save.settings || {...DEFAULT_SETTINGS};
+            const settingsToLoad = { ...DEFAULT_SETTINGS, ...(save.settings || {}) };
             
             document.getElementById('globalFont').value = settingsToLoad.font;
             document.getElementById('globalFontSize').value = settingsToLoad.fontSize;
             document.getElementById('globalLineSpacing').value = settingsToLoad.lineSpacing;
             document.getElementById('globalYOffset').value = settingsToLoad.yOffset;
-            document.getElementById('globalAutoFit').checked = settingsToLoad.autoFit || false;
+            document.getElementById('globalAutoFit').checked = settingsToLoad.autoFit;
             
             if(document.getElementById('descColumns')) document.getElementById('descColumns').value = settingsToLoad.descCols;
             if(document.getElementById('descColStart')) document.getElementById('descColStart').value = settingsToLoad.descStart;
@@ -997,7 +1005,6 @@ const pdfBase64 = "JVBERi0xLjcNCiW1tbW1DQoxIDAgb2JqDQo8PC9UeXBlL0NhdGFsb2cvUGFnZ
             });
             
             setTimeout(() => resizeAllInputs(), 50);
-            showEditor();
         }
 
         function deleteSave(id) {
