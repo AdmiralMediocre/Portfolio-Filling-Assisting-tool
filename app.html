@@ -1477,6 +1477,20 @@
             window.addEventListener('mouseup', () => isDragging = false);
         }
 
+        // Safe pixel ceiling for html2canvas output. iOS Safari refuses/blanks
+        // canvases above roughly 16.7M px on older devices; some Android
+        // WebViews cap GPU texture size too. We pick a scale that stays
+        // comfortably under that on ALL platforms instead of a fixed scale:3
+        // that can silently fail only on phones.
+        const MAX_CANVAS_PIXELS = 12_000_000;
+
+        function getSafeExportScale(el) {
+            const w = el.offsetWidth, h = el.offsetHeight;
+            const requested = 3; // desired quality on desktop
+            const maxScale = Math.sqrt(MAX_CANVAS_PIXELS / (w * h));
+            return Math.max(1, Math.min(requested, maxScale));
+        }
+
         async function exportPDF() {
             if (!pdfData) { alert("Template not loaded."); return; }
             const nameInput = document.getElementById('exportFileName');
@@ -1485,6 +1499,13 @@
 
             showLoader(true, "Exporting PDF...");
             document.body.classList.add('printing');
+
+            // Make sure the Khmer/Latin webfonts are fully loaded before
+            // rasterizing — otherwise iOS/Android can capture a frame using
+            // fallback font metrics, so the PDF won't match what's on screen.
+            if (document.fonts && document.fonts.ready) {
+                try { await document.fonts.ready; } catch (e) {}
+            }
             await new Promise(r => setTimeout(r, 800));
             
             const { jsPDF } = window.jspdf;
@@ -1492,14 +1513,37 @@
             const pageContainer = document.getElementById('page-container');
             
             try {
-                const canvas = await html2canvas(pageContainer, { scale: 3, useCORS: true, logging: false });
+                if (!pageContainer) throw new Error("Page not rendered.");
+
+                const safeScale = getSafeExportScale(pageContainer);
+                const canvas = await html2canvas(pageContainer, {
+                    scale: safeScale,
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff'
+                });
+
+                if (canvas.width === 0 || canvas.height === 0) {
+                    throw new Error("Rendered canvas was empty (0x0) — the browser likely ran out of memory.");
+                }
+
                 const imgData = canvas.toDataURL('image/jpeg', 0.95);
                 const imgProps = pdf.getImageProperties(imgData);
                 const pdfWidth = pdf.internal.pageSize.getWidth();
                 const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
                 pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+
+                // jsPDF's save() triggers a Blob download via a temporary <a>.
+                // Works directly on desktop Chrome/Edge/Firefox and Android
+                // Chrome. On iOS Safari there's no real filesystem download
+                // API, so the PDF opens and the user saves it via the share
+                // sheet instead — that's expected iOS behavior, not a bug.
                 pdf.save(`${fileName}.pdf`);
-            } catch (err) { alert("Export failed."); } 
+            } catch (err) {
+                console.error("PDF export failed:", err);
+                alert("Export failed: " + (err && err.message ? err.message : "Unknown error") +
+                      "\n\nIf this keeps happening on a phone, close other tabs/apps to free memory, or export from a desktop browser.");
+            }
             finally {
                 document.body.classList.remove('printing');
                 showLoader(false);
